@@ -8,7 +8,7 @@ import { executeShell, Shell } from "@oh-my-pi/pi-natives";
 import { Settings } from "../config/settings";
 import { OutputSink } from "../session/streaming-output";
 import { getOrCreateSnapshot } from "../utils/shell-snapshot";
-import { NON_INTERACTIVE_ENV } from "./non-interactive-env";
+import { getNonInteractiveEnv } from "./non-interactive-env";
 
 export interface BashExecutorOptions {
 	cwd?: string;
@@ -55,10 +55,12 @@ async function resolveShellCwd(cwd: string | undefined): Promise<string | undefi
 
 export async function executeBash(command: string, options?: BashExecutorOptions): Promise<BashResult> {
 	const settings = await Settings.init();
+	const disableCI = settings.get("tools.disableCI");
+	const nonInteractiveEnv = getNonInteractiveEnv(disableCI);
 	const { shell, env: shellEnv, prefix } = settings.getShellConfig();
 	const snapshotPath = shell.includes("bash") ? await getOrCreateSnapshot(shell, shellEnv) : null;
 	const commandCwd = await resolveShellCwd(options?.cwd);
-	const commandEnv = options?.env ? { ...NON_INTERACTIVE_ENV, ...options.env } : NON_INTERACTIVE_ENV;
+	const commandEnv = options?.env ? { ...nonInteractiveEnv, ...options.env } : nonInteractiveEnv;
 
 	// Apply command prefix if configured
 	const prefixedCommand = prefix ? `${prefix} ${command}` : command;

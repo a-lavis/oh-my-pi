@@ -12,7 +12,7 @@ import {
 } from "@oh-my-pi/pi-tui";
 import type { Terminal as XtermTerminalType } from "@xterm/headless";
 import xterm from "@xterm/headless";
-import { NON_INTERACTIVE_ENV } from "../exec/non-interactive-env";
+import { getNonInteractiveEnv } from "../exec/non-interactive-env";
 import type { Theme } from "../modes/theme/theme";
 import { OutputSink, type OutputSummary } from "../session/streaming-output";
 import { sanitizeWithOptionalSixelPassthrough } from "../utils/sixel";
@@ -290,11 +290,13 @@ export async function runInteractiveBashPty(
 		timeoutMs: number;
 		signal?: AbortSignal;
 		env?: Record<string, string>;
+		disableCI?: boolean;
 		artifactPath?: string;
 		artifactId?: string;
 	},
 ): Promise<BashInteractiveResult> {
 	const sink = new OutputSink({ artifactPath: options.artifactPath, artifactId: options.artifactId });
+	const nonInteractiveEnv = getNonInteractiveEnv(options.disableCI ?? false);
 	const result = await ui.custom<BashInteractiveResult>(
 		(tui, uiTheme, _keybindings, done) => {
 			const session = new PtySession();
@@ -349,7 +351,7 @@ export async function runInteractiveBashPty(
 						cwd: options.cwd,
 						timeoutMs: options.timeoutMs,
 						env: {
-							...NON_INTERACTIVE_ENV,
+							...nonInteractiveEnv,
 							...options.env,
 						},
 						signal: options.signal,

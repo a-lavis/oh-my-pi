@@ -1,4 +1,6 @@
-export const NON_INTERACTIVE_ENV: Readonly<Record<string, string>> = {
+import { procmgr } from "@oh-my-pi/pi-utils";
+
+const NON_INTERACTIVE_ENV_BASE: Readonly<Record<string, string>> = Object.freeze({
 	// Disable pagers so commands don't block on interactive views.
 	PAGER: "cat",
 	GIT_PAGER: "cat",
@@ -19,7 +21,6 @@ export const NON_INTERACTIVE_ENV: Readonly<Record<string, string>> = {
 	EDITOR: "true",
 	GIT_TERMINAL_PROMPT: "0",
 	SSH_ASKPASS: "/usr/bin/false",
-	CI: "1",
 	// Package manager defaults for unattended execution.
 	npm_config_yes: "true",
 	npm_config_update_notifier: "false",
@@ -40,4 +41,21 @@ export const NON_INTERACTIVE_ENV: Readonly<Record<string, string>> = {
 	GH_PROMPT_DISABLED: "1",
 	COMPOSER_NO_INTERACTION: "1",
 	CLOUDSDK_CORE_DISABLE_PROMPTS: "1",
-};
+});
+
+const NON_INTERACTIVE_ENV_WITH_CI: Readonly<Record<string, string>> = Object.freeze({
+	...NON_INTERACTIVE_ENV_BASE,
+	CI: "1",
+});
+
+const NON_INTERACTIVE_ENV_WITH_DISABLED_CI: Readonly<Record<string, string>> = Object.freeze({
+	...NON_INTERACTIVE_ENV_BASE,
+	// Override inherited CI from parent process without enabling CI-mode checks.
+	CI: "",
+});
+
+export function getNonInteractiveEnv(disableCISetting = false): Readonly<Record<string, string>> {
+	return procmgr.shouldDisableShellCI(disableCISetting)
+		? NON_INTERACTIVE_ENV_WITH_DISABLED_CI
+		: NON_INTERACTIVE_ENV_WITH_CI;
+}

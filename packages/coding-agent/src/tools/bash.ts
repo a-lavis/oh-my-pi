@@ -400,6 +400,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 
 		// Allocate artifact for truncated output storage
 		const { path: artifactPath, id: artifactId } = (await this.session.allocateOutputArtifact?.("bash")) ?? {};
+		const disableCI = this.session.settings.get("tools.disableCI");
 
 		const usePty = pty && $env.PI_NO_PTY !== "1" && ctx?.hasUI === true && ctx.ui !== undefined;
 		const result: BashResult | BashInteractiveResult = usePty
@@ -409,6 +410,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 					timeoutMs,
 					signal,
 					env: resolvedEnv,
+					disableCI,
 					artifactPath,
 					artifactId,
 				})

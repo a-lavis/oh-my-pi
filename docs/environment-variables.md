@@ -285,7 +285,7 @@ These are consumed via `@oh-my-pi/pi-utils/dirs` and affect where coding-agent s
 
 | Variable | Behavior |
 |---|---|
-| `PI_BASH_NO_CI` | Suppresses automatic `CI=true` injection into spawned shell env |
+| `PI_BASH_NO_CI` | Legacy behavior: skips automatic `CI=true` injection in shell spawn env (does not clear inherited `CI`) |
 | `CLAUDE_BASH_NO_CI` | Legacy alias fallback for `PI_BASH_NO_CI` |
 | `PI_BASH_NO_LOGIN` | Intended to disable login shell mode |
 | `CLAUDE_BASH_NO_LOGIN` | Legacy alias fallback for `PI_BASH_NO_LOGIN` |
@@ -293,6 +293,9 @@ These are consumed via `@oh-my-pi/pi-utils/dirs` and affect where coding-agent s
 | `CLAUDE_CODE_SHELL_PREFIX` | Legacy alias fallback for `PI_SHELL_PREFIX` |
 | `VISUAL` | Preferred external editor command |
 | `EDITOR` | Fallback external editor command |
+
+Settings equivalent: `tools.disableCI: true` in `~/.omp/agent/config.yml` (or project settings).
+Unlike legacy env flags, the setting enforces CI-off behavior by neutralizing `CI` (`CI=""`) across bash execution paths.
 
 Current implementation note: `PI_BASH_NO_LOGIN`/`CLAUDE_BASH_NO_LOGIN` are read, but current `getShellArgs()` returns `['-l','-c']` in both branches (effectively no-op today).
 

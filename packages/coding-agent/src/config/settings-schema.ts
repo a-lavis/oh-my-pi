@@ -1251,6 +1251,18 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
+	"tools.disableCI": {
+		type: "boolean",
+		default: false,
+		ui: {
+			tab: "tools",
+			label: "Disable CI Env for Bash",
+			description:
+				"Do not set CI in spawned bash environments (also removes inherited CI; env flags PI_BASH_NO_CI/CLAUDE_BASH_NO_CI still apply)",
+			submenu: true,
+		},
+	},
+
 	"tools.maxTimeout": {
 		type: "number",
 		default: 0,

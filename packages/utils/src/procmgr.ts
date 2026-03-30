@@ -11,7 +11,19 @@ export interface ShellConfig {
 	prefix: string | undefined;
 }
 
-let cachedShellConfig: ShellConfig | null = null;
+const cachedShellConfig = new Map<string, ShellConfig>();
+
+export interface ShellConfigOptions {
+	disableCI?: boolean;
+}
+
+export function shouldDisableShellCI(disableCISetting?: boolean): boolean {
+	return Boolean(disableCISetting);
+}
+
+function shouldSkipInjectedShellCI(): boolean {
+	return Boolean($env.PI_BASH_NO_CI || $env.CLAUDE_BASH_NO_CI);
+}
 
 const IS_WINDOWS = process.platform === "win32";
 const TERM_SIGNAL = IS_WINDOWS ? undefined : "SIGTERM";
@@ -31,17 +43,24 @@ function isExecutable(path: string): boolean {
 /**
  * Build the spawn environment (cached).
  */
-function buildSpawnEnv(shell: string): Record<string, string> {
-	const noCI = $env.PI_BASH_NO_CI || $env.CLAUDE_BASH_NO_CI;
-	return {
+function buildSpawnEnv(shell: string, options: ShellConfigOptions = {}): Record<string, string> {
+	const env = {
 		...Bun.env,
 		SHELL: shell,
 		GIT_EDITOR: "true",
 		GPG_TTY: "not a tty",
 		OMPCODE: "1",
 		CLAUDECODE: "1",
-		...(noCI ? {} : { CI: "true" }),
-	};
+	} as Record<string, string>;
+
+	if (shouldDisableShellCI(options.disableCI)) {
+		// Keep CI non-truthy even when inherited from parent runtime.
+		env.CI = "";
+	} else if (!shouldSkipInjectedShellCI()) {
+		env.CI = "true";
+	}
+
+	return env;
 }
 
 /**
@@ -75,11 +94,11 @@ function findBashOnPath(): string | null {
 /**
  * Build full shell config from a shell path.
  */
-function buildConfig(shell: string): ShellConfig {
+function buildConfig(shell: string, options: ShellConfigOptions = {}): ShellConfig {
 	return {
 		shell,
 		args: getShellArgs(),
-		env: buildSpawnEnv(shell),
+		env: buildSpawnEnv(shell, options),
 		prefix: getShellPrefix(),
 	};
 }
@@ -116,16 +135,35 @@ export function resolveBasicShell(): string | undefined {
  * 3. On Unix: $SHELL if bash/zsh, then fallback paths
  * 4. Fallback: sh
  */
-export function getShellConfig(customShellPath?: string): ShellConfig {
-	if (cachedShellConfig) {
-		return cachedShellConfig;
+function getShellConfigCacheKey(
+	customShellPath: string | undefined,
+	disableCIFromSetting: boolean,
+	skipInjectedCI: boolean,
+): string {
+	const noLogin = Boolean($env.PI_BASH_NO_LOGIN || $env.CLAUDE_BASH_NO_LOGIN);
+	const prefix = getShellPrefix() ?? "";
+	return `${customShellPath ?? ""}::${noLogin ? "no-login" : "login"}::${prefix}::${disableCIFromSetting ? "setting-no-ci" : "setting-ci"}::${skipInjectedCI ? "skip-injected-ci" : "inject-ci"}`;
+}
+
+export function getShellConfig(customShellPath?: string, options: ShellConfigOptions = {}): ShellConfig {
+	const disableCIFromSetting = shouldDisableShellCI(options.disableCI);
+	const skipInjectedCI = shouldSkipInjectedShellCI();
+	const cacheKey = getShellConfigCacheKey(customShellPath, disableCIFromSetting, skipInjectedCI);
+	const cached = cachedShellConfig.get(cacheKey);
+	if (cached) {
+		return cached;
 	}
+
+	const cacheAndReturn = (shell: string): ShellConfig => {
+		const config = buildConfig(shell, { disableCI: disableCIFromSetting });
+		cachedShellConfig.set(cacheKey, config);
+		return config;
+	};
 
 	// 1. Check user-specified shell path
 	if (customShellPath) {
 		if (fs.existsSync(customShellPath)) {
-			cachedShellConfig = buildConfig(customShellPath);
-			return cachedShellConfig;
+			return cacheAndReturn(customShellPath);
 		}
 		throw new Error(
 			`Custom shell path not found: ${customShellPath}\nPlease update shellPath in ~/.omp/agent/settings.json`,
@@ -146,16 +184,14 @@ export function getShellConfig(customShellPath?: string): ShellConfig {
 
 		for (const path of paths) {
 			if (fs.existsSync(path)) {
-				cachedShellConfig = buildConfig(path);
-				return cachedShellConfig;
+				return cacheAndReturn(path);
 			}
 		}
 
 		// 3. Fallback: search bash.exe on PATH (Cygwin, MSYS2, WSL, etc.)
 		const bashOnPath = findBashOnPath();
 		if (bashOnPath) {
-			cachedShellConfig = buildConfig(bashOnPath);
-			return cachedShellConfig;
+			return cacheAndReturn(bashOnPath);
 		}
 
 		throw new Error(
@@ -171,18 +207,15 @@ export function getShellConfig(customShellPath?: string): ShellConfig {
 	const userShell = Bun.env.SHELL;
 	const isValidShell = userShell && (userShell.includes("bash") || userShell.includes("zsh"));
 	if (isValidShell && isExecutable(userShell)) {
-		cachedShellConfig = buildConfig(userShell);
-		return cachedShellConfig;
+		return cacheAndReturn(userShell);
 	}
 
 	// 4. Fallback: use basic shell
 	const basicShell = resolveBasicShell();
 	if (basicShell) {
-		cachedShellConfig = buildConfig(basicShell);
-		return cachedShellConfig;
+		return cacheAndReturn(basicShell);
 	}
-	cachedShellConfig = buildConfig("sh");
-	return cachedShellConfig;
+	return cacheAndReturn("sh");
 }
 
 /**

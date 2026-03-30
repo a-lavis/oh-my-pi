@@ -301,7 +301,8 @@ export class Settings {
 	 */
 	getShellConfig() {
 		const shell = this.get("shellPath");
-		return procmgr.getShellConfig(shell);
+		const disableCI = this.get("tools.disableCI");
+		return procmgr.getShellConfig(shell, { disableCI });
 	}
 
 	/**
